@@ -128,11 +128,6 @@ def on_disconnect():
         broadcast_game_state()
 
 def broadcast_game_state():
-    if game_state.broadcast_throttle > 0:
-        game_state.broadcast_throttle -= 1
-        return
-    game_state.broadcast_throttle = 1  # send every ~3 frames
-    
     # Compact delta format
     state = {
         'p': {pid: {'x': p['x'], 'y': p['y'], 'a': p.get('a'), 'rd': p.get('rd'), 'r': p.get('r'), 'nm': p.get('nm'), 's': p.get('s'), 'ping': p.get('ping', 0), 'nc': p.get('nc')} 
@@ -285,7 +280,7 @@ def game_loop():
     
     # Check if round is over
     alive_count = game_state.get_alive_count()
-    if alive_count <= 1 and len(game_state.players) > 1:
+    if alive_count <= 1:
         game_state.round_active = False
         winner_id = game_state.get_winner()
 
