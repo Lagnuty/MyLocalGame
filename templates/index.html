@@ -241,6 +241,8 @@
         let lastPlayerPositions = {};  // for smooth interpolation
         let moveSendThrottle = 0;
         let playerPing = 0;
+        let particles = [];  // visual effects
+        let uselessButtonClicks = 0;  // secret achievement counter
         
         const GAME_WIDTH = 1200;
         const GAME_HEIGHT = 600;
@@ -280,12 +282,63 @@
         }
 
         function doNothing() {
-            // Эта кнопка намеренно ничего не делает :)
-            return;
+            uselessButtonClicks++;
+            
+            // Секрет: 25 кликов = золотой цвет ника
+            if (uselessButtonClicks >= 25) {
+                uselessButtonClicks = 0;
+                socket.emit('secret_achievement');
+                
+                // Визуальный эффект подтверждения
+                if (playerId && gameState && gameState.p && gameState.p[playerId]) {
+                    const me = gameState.p[playerId];
+                    addParticle(me.x + PLAYER_WIDTH/2, me.y - 20, '🎨 ЦВЕТ НИКА', '#ffd700', 'rune');
+                }
+            }
+        }
+        
+        function addParticle(x, y, text, color, type) {
+            particles.push({
+                x: x,
+                y: y,
+                text: text,
+                color: color,
+                type: type,
+                life: type === 'score' ? 60 : 90,  // frames
+                alpha: 1.0
+            });
         }
         
         socket.on('gs', (delta) => {
             if (!gameState) gameState = {p: {}, o: [], u: [], w: 0, g: false};
+            
+            // Detect powerup pickup for effects
+            if (playerId && gameState.p && gameState.p[playerId]) {
+                const me = gameState.p[playerId];
+                const newScore = me.s || 0;
+                const newRune = me.r;
+                
+                // Score increased = bonus pickup
+                if (newScore > lastPlayerScore) {
+                    addParticle(me.x + PLAYER_WIDTH/2, me.y, '+1', '#7fe0b2', 'score');
+                    lastPlayerScore = newScore;
+                }
+                
+                // Rune activated
+                if (newRune && newRune !== lastPlayerRune) {
+                    let runeText = '';
+                    let runeColor = '';
+                    if (newRune === 'shield') { runeText = '🛡️ ЩИТ'; runeColor = '#ffd93d'; }
+                    if (newRune === 'speed') { runeText = '⚡ СКОРОСТЬ'; runeColor = '#ff6b9d'; }
+                    if (newRune === 'freeze') { runeText = '❄️ ЗАМОРОЗКА'; runeColor = '#6bcbff'; }
+                    if (runeText) addParticle(me.x + PLAYER_WIDTH/2, me.y - 20, runeText, runeColor, 'rune');
+                    lastPlayerRune = newRune;
+                }
+                if (!newRune && lastPlayerRune) {
+                    lastPlayerRune = null;
+                }
+            }
+            
             // Store last positions for interpolation
             Object.keys(delta.p || {}).forEach(pid => {
                 if (!lastPlayerPositions[pid]) lastPlayerPositions[pid] = {x: 0, y: 0};
@@ -451,8 +504,9 @@
                 ctx.lineWidth = 2;
                 ctx.strokeRect(px, py, PLAYER_WIDTH, PLAYER_HEIGHT);
                 
-                // Draw name
-                ctx.fillStyle = '#e8ecf5';
+                // Draw name (supports custom color)
+                const nameColor = player.nc || '#e8ecf5';
+                ctx.fillStyle = nameColor;
                 ctx.font = 'bold 10px "Segoe UI"';
                 ctx.textAlign = 'center';
                 ctx.fillText(player.nm, px + PLAYER_WIDTH/2, py - 5);
@@ -463,6 +517,25 @@
             Object.entries(players).forEach(([pid, player]) => {
                 if (player.a) return;
                 ctx.fillRect(player.x, player.y, PLAYER_WIDTH, PLAYER_HEIGHT);
+            });
+            
+            // Draw particles (floating text effects)
+            particles.forEach((p, idx) => {
+                p.life--;
+                p.y -= 1.5;  // float up
+                p.alpha = p.life / (p.type === 'score' ? 60 : 90);
+                
+                ctx.globalAlpha = p.alpha;
+                ctx.fillStyle = p.color;
+                ctx.font = p.type === 'score' ? 'bold 20px Arial' : 'bold 16px Arial';
+                ctx.textAlign = 'center';
+                ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+                ctx.lineWidth = 3;
+                ctx.strokeText(p.text, p.x, p.y);
+                ctx.fillText(p.text, p.x, p.y);
+                ctx.globalAlpha = 1.0;
+                
+                if (p.life <= 0) particles.splice(idx, 1);
             });
             
             // Draw bottom instruction

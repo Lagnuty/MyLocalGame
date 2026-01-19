@@ -56,7 +56,8 @@ class GameState:
             'active_rune': None,
             'r': None,  # compact
             'rune_timer': 0,
-            'ping': 0
+            'ping': 0,
+            'nc': None  # name color (compact)
         }
         
     def remove_player(self, player_id):
@@ -134,7 +135,7 @@ def broadcast_game_state():
     
     # Compact delta format
     state = {
-        'p': {pid: {'x': p['x'], 'y': p['y'], 'a': p.get('a'), 'rd': p.get('rd'), 'r': p.get('r'), 'nm': p.get('nm'), 's': p.get('s'), 'ping': p.get('ping', 0)} 
+        'p': {pid: {'x': p['x'], 'y': p['y'], 'a': p.get('a'), 'rd': p.get('rd'), 'r': p.get('r'), 'nm': p.get('nm'), 's': p.get('s'), 'ping': p.get('ping', 0), 'nc': p.get('nc')} 
               for pid, p in game_state.players.items()},
         'o': [[o['x'], o['y']] for o in game_state.obstacles],
         'u': [[u['x'], u['y'], u['type']] for u in game_state.powerups],
@@ -239,6 +240,7 @@ def game_loop():
             player['rune_timer'] -= 1
             if player['rune_timer'] <= 0:
                 player['active_rune'] = None
+                player['r'] = None  # sync compact field
     
     # Check collisions
     for player_id, player in game_state.players.items():
@@ -259,13 +261,16 @@ def game_loop():
                     game_state.players[player_id]['score'] += 1
                     game_state.players[player_id]['s'] = game_state.players[player_id]['score']
                 else:  # shield, speed, freeze
-                    game_state.players[player_id]['active_rune'] = ptype
-                    game_state.players[player_id]['r'] = ptype
-                    game_state.players[player_id]['rune_timer'] = RUNE_DURATION
+                    # Only pick up rune if no active rune or if we want to stack (currently no stacking)
+                    if not game_state.players[player_id].get('active_rune'):
+                        game_state.players[player_id]['active_rune'] = ptype
+                        game_state.players[player_id]['r'] = ptype
+                        game_state.players[player_id]['rune_timer'] = RUNE_DURATION
                 game_state.powerups.remove(powerup)
 
         # Obstacle collisions (shield blocks damage)
-        if player.get('active_rune') != 'shield':
+        has_shield = player.get('active_rune') == 'shield' and player.get('rune_timer', 0) > 0
+        if not has_shield:
             for obstacle in game_state.obstacles:
                 ox, oy = obstacle['x'], obstacle['y']
                 
@@ -340,6 +345,16 @@ def on_ping(data):
         ping = current_time - client_time
         game_state.players[player_id]['ping'] = max(0, ping)
     emit('pong', {'t': data.get('t', 0)})
+
+@socketio.on('secret_achievement')
+def on_secret_achievement():
+    """Easter egg: change nickname color on secret trigger"""
+    player_id = request.sid if request else None
+    if player_id and player_id in game_state.players:
+        # Set golden name color
+        game_state.players[player_id]['nc'] = '#ffd700'
+        # Broadcast immediately so clients see the update
+        broadcast_game_state()
 
 def game_tick():
     while True:
