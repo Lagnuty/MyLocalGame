@@ -240,6 +240,7 @@
         let readySent = false;
         let lastPlayerPositions = {};  // for smooth interpolation
         let moveSendThrottle = 0;
+        let playerPing = 0;
         
         const GAME_WIDTH = 1200;
         const GAME_HEIGHT = 600;
@@ -303,6 +304,18 @@
             drawGame();
         });
         
+        socket.on('pong', (data) => {
+            const now = Date.now();
+            playerPing = now - data.t;
+        });
+
+        // Send ping every 1 second
+        setInterval(() => {
+            if (joined) {
+                socket.emit('ping', {t: Date.now()});
+            }
+        }, 1000);
+
         socket.on('round_end', (data) => {
             alert(`🏆 Раунд закончился!\n🥇 Победитель: ${data.winner}`);
             document.getElementById('status').textContent = `Раунд завершён! Победитель: ${data.winner}`;
@@ -350,7 +363,9 @@
                     const className = player.a ? 'alive' : 'dead';
                     const aliveStatus = player.a ? '🟢' : '☠️';
                     const readyStatus = player.rd ? '✅' : '⌛';
-                    playersList += `<div class="player-item ${className}">${player.nm} ${aliveStatus} ${readyStatus} <strong>${player.s || 0}</strong></div>`;
+                    const pingColor = player.ping < 50 ? '#7fe0b2' : player.ping < 150 ? '#ffd93d' : '#ff6b6b';
+                    const pingStr = player.ping ? `<span style="color:${pingColor}">${player.ping}ms</span>` : '-';
+                    playersList += `<div class="player-item ${className}">${player.nm} ${aliveStatus} ${readyStatus} <strong>${player.s || 0}</strong> ${pingStr}</div>`;
                 });
             
             document.getElementById('playersList').innerHTML = playersList || '<em>Нет игроков</em>';

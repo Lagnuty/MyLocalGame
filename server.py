@@ -55,7 +55,8 @@ class GameState:
             'rd': False,  # compact
             'active_rune': None,
             'r': None,  # compact
-            'rune_timer': 0
+            'rune_timer': 0,
+            'ping': 0
         }
         
     def remove_player(self, player_id):
@@ -133,7 +134,7 @@ def broadcast_game_state():
     
     # Compact delta format
     state = {
-        'p': {pid: {'x': p['x'], 'y': p['y'], 'a': p.get('a'), 'rd': p.get('rd'), 'r': p.get('r'), 'nm': p.get('nm'), 's': p.get('s')} 
+        'p': {pid: {'x': p['x'], 'y': p['y'], 'a': p.get('a'), 'rd': p.get('rd'), 'r': p.get('r'), 'nm': p.get('nm'), 's': p.get('s'), 'ping': p.get('ping', 0)} 
               for pid, p in game_state.players.items()},
         'o': [[o['x'], o['y']] for o in game_state.obstacles],
         'u': [[u['x'], u['y'], u['type']] for u in game_state.powerups],
@@ -328,6 +329,17 @@ def on_player_ready():
     broadcast_game_state()
     if not game_state.round_active and game_state.all_ready():
         start_round()
+
+
+@socketio.on('ping')
+def on_ping(data):
+    player_id = request.sid if request else None
+    if player_id and player_id in game_state.players:
+        client_time = data.get('t', 0)
+        current_time = int(datetime.utcnow().timestamp() * 1000)  # ms
+        ping = current_time - client_time
+        game_state.players[player_id]['ping'] = max(0, ping)
+    emit('pong', {'t': data.get('t', 0)})
 
 def game_tick():
     while True:
