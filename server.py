@@ -130,7 +130,7 @@ def broadcast_game_state():
     if game_state.broadcast_throttle > 0:
         game_state.broadcast_throttle -= 1
         return
-    game_state.broadcast_throttle = 0  # send every ~2 frames
+    game_state.broadcast_throttle = 1  # send every ~3 frames
     
     # Compact delta format
     state = {

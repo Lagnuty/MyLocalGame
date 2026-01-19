@@ -203,7 +203,7 @@
                 <p id="playerCount">0</p>
             </div>
             <div class="info-box">
-                <h3>Волна</h3>
+                <h3>Волна / Пинг</h3>
                 <p id="waveCount">0</p>
             </div>
         </div>
@@ -246,7 +246,7 @@
         const GAME_HEIGHT = 600;
         const PLAYER_WIDTH = 30;
         const PLAYER_HEIGHT = 30;
-        const PLAYER_SPEED = 6;
+        const PLAYER_SPEED = 8;  // increased for better feel
         
         // Keyboard controls
         document.addEventListener('keydown', (e) => {
@@ -341,7 +341,8 @@
             const readyCount = Object.values(players).filter(p => p.rd).length;
             
             document.getElementById('playerCount').textContent = `${aliveCount}/${playerCount} | Готовы: ${readyCount}`;
-            document.getElementById('waveCount').textContent = gameState.w || '-';
+            const pingDisplay = playerPing ? `${gameState.w || '-'} | 📡${playerPing}ms` : `${gameState.w || '-'}`;
+            document.getElementById('waveCount').textContent = pingDisplay;
             
             // Update status
             const statusEl = document.getElementById('status');
@@ -363,8 +364,7 @@
                     const className = player.a ? 'alive' : 'dead';
                     const aliveStatus = player.a ? '🟢' : '☠️';
                     const readyStatus = player.rd ? '✅' : '⌛';
-                    const pingColor = player.ping < 50 ? '#7fe0b2' : player.ping < 150 ? '#ffd93d' : '#ff6b6b';
-                    const pingStr = player.ping ? `<span style="color:${pingColor}">${player.ping}ms</span>` : '-';
+                    const pingStr = player.ping ? `${player.ping}ms` : '-';
                     playersList += `<div class="player-item ${className}">${player.nm} ${aliveStatus} ${readyStatus} <strong>${player.s || 0}</strong> ${pingStr}</div>`;
                 });
             
@@ -382,10 +382,10 @@
             ctx.fillStyle = '#0c1220';
             ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
             
-            // Draw grid
-            ctx.strokeStyle = 'rgba(127, 161, 255, 0.08)';
-            ctx.lineWidth = 1;
-            for (let i = 0; i < GAME_WIDTH; i += 40) {
+            // Draw grid (every 2nd render)
+            ctx.strokeStyle = 'rgba(127, 161, 255, 0.06)';
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i < GAME_WIDTH; i += 80) {
                 ctx.beginPath();
                 ctx.moveTo(i, 0);
                 ctx.lineTo(i, GAME_HEIGHT);
@@ -502,10 +502,10 @@
                     if (x !== me.x || y !== me.y) {
                         me.x = x;
                         me.y = y;
-                        // Throttle: send every 50ms (~3 frames at 60fps)
+                        // Throttle: send every ~2 frames at 60fps
                         if (moveSendThrottle <= 0) {
                             socket.emit('player_move', {x, y});
-                            moveSendThrottle = 3;
+                            moveSendThrottle = 2;
                         }
                         moveSendThrottle--;
                     }
