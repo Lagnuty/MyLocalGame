@@ -19,7 +19,7 @@ OBSTACLE_SPEED = 5
 
 class GameState:
     def __init__(self):
-        self.players = {}  # {player_id: {name, x, y, alive}}
+        self.players = {}  # {player_id: {name, x, y, alive, ready}}
         self.obstacles = []  # [{x, y}]
         self.round_active = False
         self.wave = 0
@@ -29,9 +29,10 @@ class GameState:
         self.players[player_id] = {
             'name': name,
             'x': GAME_WIDTH // 2,
-            'y': GAME_HEIGHT - 50,
+            'y': GAME_HEIGHT - 60,
             'alive': True,
-            'score': 0
+            'score': 0,
+            'ready': False
         }
         
     def remove_player(self, player_id):
@@ -46,6 +47,9 @@ class GameState:
             if p['alive']:
                 return pid
         return None
+
+    def all_ready(self):
+        return len(self.players) > 0 and all(p.get('ready') for p in self.players.values())
 
 game_state = GameState()
 
@@ -79,9 +83,12 @@ def on_player_move(data):
     player_id = request.sid
     if player_id in game_state.players:
         x = data.get('x', 0)
+        y = data.get('y', GAME_HEIGHT - PLAYER_HEIGHT)
         # Constrain to game bounds
         x = max(0, min(x, GAME_WIDTH - PLAYER_WIDTH))
+        y = max(0, min(y, GAME_HEIGHT - PLAYER_HEIGHT))
         game_state.players[player_id]['x'] = x
+        game_state.players[player_id]['y'] = y
 
 @socketio.on('disconnect')
 def on_disconnect():
@@ -101,8 +108,8 @@ def broadcast_game_state():
     }
     socketio.emit('game_state', state, to=None)
 
-def start_round():
-    if len(game_state.players) >= 1:
+def start_round(force=False):
+    if len(game_state.players) >= 1 and (force or game_state.all_ready()):
         game_state.round_active = True
         game_state.wave += 1
         game_state.spawn_counter = 0
@@ -112,6 +119,9 @@ def start_round():
         for player in game_state.players.values():
             player['alive'] = True
             player['x'] = GAME_WIDTH // 2
+            player['y'] = GAME_HEIGHT - 60
+            # Require повторное голосование в следующих раундах
+            player['ready'] = False
         
         broadcast_game_state()
         print(f'Round {game_state.wave} started with {len(game_state.players)} players')
@@ -165,7 +175,19 @@ def game_loop():
 
 @socketio.on('start_round')
 def on_start_round():
-    start_round()
+    # Manual start (host) still possible, bypassing ready-check if needed
+    start_round(force=True)
+
+
+@socketio.on('player_ready')
+def on_player_ready():
+    player_id = request.sid if request else None
+    if not player_id or player_id not in game_state.players:
+        return
+    game_state.players[player_id]['ready'] = True
+    broadcast_game_state()
+    if not game_state.round_active and game_state.all_ready():
+        start_round()
 
 def game_tick():
     while True:

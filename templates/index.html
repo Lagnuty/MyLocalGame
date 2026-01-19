@@ -184,7 +184,7 @@
         <div class="controls">
             <input type="text" id="playerName" placeholder="Введите ваше имя" maxlength="15">
             <button id="joinBtn" onclick="joinGame()">Присоединиться</button>
-            <button id="startBtn" onclick="startRound()" disabled>Начать раунд</button>
+            <button id="readyBtn" onclick="readyUp()" disabled>Готов</button>
         </div>
         
         <div class="info-panel">
@@ -208,10 +208,11 @@
         
         <div class="instructions">
             <strong>📋 Правила:</strong><br>
-            ➡️ Стрелки (← →) для движения влево/вправо<br>
+            ⬆️⬇️⬅️➡️ Стрелки для движения по полю<br>
             💥 Уворачивайтесь от препятствий<br>
             🏆 Последний выживший побеждает!<br>
-            🔄 После раунда можно сыграть ещё
+            🗳️ Раунд стартует, когда все нажмут «Готов»
+            🔄 После раунда нажмите «Готов» снова
         </div>
     </div>
 
@@ -225,6 +226,7 @@
         let playerName = '';
         let keysPressed = {};
         let joined = false;
+        let readySent = false;
         
         const GAME_WIDTH = 800;
         const GAME_HEIGHT = 400;
@@ -235,18 +237,6 @@
         // Keyboard controls
         document.addEventListener('keydown', (e) => {
             keysPressed[e.key] = true;
-            
-            if (playerId && gameState && gameState.round_active) {
-                const player = gameState.players[playerId];
-                if (player && player.alive) {
-                    if (e.key === 'ArrowLeft') {
-                        player.x = Math.max(0, player.x - PLAYER_SPEED);
-                    } else if (e.key === 'ArrowRight') {
-                        player.x = Math.min(GAME_WIDTH - PLAYER_WIDTH, player.x + PLAYER_SPEED);
-                    }
-                    socket.emit('player_move', {x: player.x});
-                }
-            }
         });
         
         document.addEventListener('keyup', (e) => {
@@ -262,11 +252,17 @@
             document.getElementById('joinBtn').disabled = true;
             document.getElementById('joinBtn').textContent = 'Подключено ✓';
             document.getElementById('playerName').disabled = true;
+            document.getElementById('readyBtn').disabled = false;
             joined = true;
         }
-        
-        function startRound() {
-            socket.emit('start_round');
+
+        function readyUp() {
+            if (!joined || readySent) return;
+            socket.emit('player_ready');
+            readySent = true;
+            const btn = document.getElementById('readyBtn');
+            btn.textContent = 'Готов ✓';
+            btn.disabled = true;
         }
         
         socket.on('game_state', (state) => {
@@ -279,6 +275,10 @@
             alert(`🏆 Раунд закончился!\n🥇 Победитель: ${data.winner}`);
             document.getElementById('status').textContent = `Раунд завершён! Победитель: ${data.winner}`;
             document.getElementById('status').className = 'status game-over';
+            readySent = false;
+            const btn = document.getElementById('readyBtn');
+            btn.textContent = 'Готов';
+            btn.disabled = false;
         });
         
         function updateUI() {
@@ -286,8 +286,9 @@
             
             const playerCount = Object.keys(gameState.players).length;
             const aliveCount = Object.values(gameState.players).filter(p => p.alive).length;
+            const readyCount = Object.values(gameState.players).filter(p => p.ready).length;
             
-            document.getElementById('playerCount').textContent = `${aliveCount}/${playerCount}`;
+            document.getElementById('playerCount').textContent = `${aliveCount}/${playerCount} | Готовы: ${readyCount}`;
             document.getElementById('waveCount').textContent = gameState.wave || '-';
             
             // Update status
@@ -296,11 +297,10 @@
                 statusEl.textContent = `🎮 Игра в процессе! Осталось: ${aliveCount}`;
                 statusEl.className = 'status playing';
             } else if (playerCount > 0) {
-                statusEl.textContent = `⏱️ Ожидание начала раунда (игроков: ${playerCount})`;
+                statusEl.textContent = `⏱️ Ждём готовность всех: ${readyCount}/${playerCount}`;
                 statusEl.className = 'status waiting';
-                if (playerCount >= 1) {
-                    document.getElementById('startBtn').disabled = false;
-                }
+                const btn = document.getElementById('readyBtn');
+                if (!readySent) btn.disabled = false;
             }
             
             // Update players list
@@ -309,8 +309,9 @@
                 .sort((a, b) => (b[1].score || 0) - (a[1].score || 0))
                 .forEach(([pid, player]) => {
                     const className = player.alive ? 'alive' : 'dead';
-                    const status = player.alive ? '✓' : '✗';
-                    playersList += `<div class="player-item ${className}">${player.name} ${status} <strong>${player.score || 0}</strong></div>`;
+                    const aliveStatus = player.alive ? '🟢' : '☠️';
+                    const readyStatus = player.ready ? '✅' : '⌛';
+                    playersList += `<div class="player-item ${className}">${player.name} ${aliveStatus} ${readyStatus} <strong>${player.score || 0}</strong></div>`;
                 });
             
             document.getElementById('playersList').innerHTML = playersList || '<em>Нет игроков</em>';
@@ -376,7 +377,9 @@
                 ctx.fillStyle = '#fff';
                 ctx.font = 'bold 16px Arial';
                 ctx.textAlign = 'center';
-                ctx.fillText('Нажми кнопку "Начать раунд"', GAME_WIDTH/2, GAME_HEIGHT - 15);
+                const playerCount = Object.keys(gameState.players).length;
+                const readyCount = Object.values(gameState.players).filter(p => p.ready).length;
+                ctx.fillText(`Голосуем за старт: ${readyCount}/${playerCount} готовы`, GAME_WIDTH/2, GAME_HEIGHT - 15);
             }
         }
         
@@ -387,6 +390,31 @@
         }
         
         gameLoop();
+
+        // Continuous input handling (держи стрелки для движения)
+        function handleInput() {
+            if (gameState && playerId && gameState.players[playerId] && gameState.round_active) {
+                const me = gameState.players[playerId];
+                if (me.alive) {
+                    let x = me.x;
+                    let y = me.y;
+                    if (keysPressed['ArrowLeft']) x -= PLAYER_SPEED;
+                    if (keysPressed['ArrowRight']) x += PLAYER_SPEED;
+                    if (keysPressed['ArrowUp']) y -= PLAYER_SPEED;
+                    if (keysPressed['ArrowDown']) y += PLAYER_SPEED;
+                    x = Math.max(0, Math.min(x, GAME_WIDTH - PLAYER_WIDTH));
+                    y = Math.max(0, Math.min(y, GAME_HEIGHT - PLAYER_HEIGHT));
+                    if (x !== me.x || y !== me.y) {
+                        me.x = x;
+                        me.y = y;
+                        socket.emit('player_move', {x, y});
+                    }
+                }
+            }
+            requestAnimationFrame(handleInput);
+        }
+
+        handleInput();
         
         // Get player ID
         socket.on('connection_response', () => {
