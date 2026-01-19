@@ -15,7 +15,9 @@ OBSTACLE_WIDTH = 40
 OBSTACLE_HEIGHT = 40
 PLAYER_WIDTH = 30
 PLAYER_HEIGHT = 30
-OBSTACLE_SPEED = 5
+OBSTACLE_SPEED_BASE = 5
+OBSTACLE_SPEED_MAX = 12
+WAVE_TICKS = 600  # ~10 секунд при 60 FPS
 MAX_OBSTACLES = 10
 SAFE_GAP = PLAYER_HEIGHT + 10
 
@@ -28,6 +30,8 @@ class GameState:
         self.spawn_counter = 0
         self.elimination_order = []  # [(player_id, timestamp)]
         self.last_spawn_y = None
+        self.obstacle_speed = OBSTACLE_SPEED_BASE
+        self.wave_timer = 0
         
     def add_player(self, player_id, name):
         self.players[player_id] = {
@@ -131,6 +135,8 @@ def start_round(force=False):
         game_state.obstacles = []
         game_state.elimination_order = []
         game_state.last_spawn_y = None
+        game_state.obstacle_speed = OBSTACLE_SPEED_BASE
+        game_state.wave_timer = 0
         
         # Reset all players
         for player in game_state.players.values():
@@ -146,6 +152,12 @@ def start_round(force=False):
 def game_loop():
     if not game_state.round_active:
         return
+
+    # Wave progression and speed scaling
+    game_state.wave_timer += 1
+    if game_state.wave_timer % WAVE_TICKS == 0:
+        game_state.wave += 1
+        game_state.obstacle_speed = min(OBSTACLE_SPEED_MAX, OBSTACLE_SPEED_BASE + 0.8 * (game_state.wave - 1))
 
     # Spawn obstacles with guaranteed gap and cap
     game_state.spawn_counter += 1
@@ -171,7 +183,7 @@ def game_loop():
     
     # Move obstacles
     for obstacle in game_state.obstacles[:]:
-        obstacle['x'] -= OBSTACLE_SPEED
+        obstacle['x'] -= game_state.obstacle_speed
         if obstacle['x'] < -OBSTACLE_WIDTH:
             game_state.obstacles.remove(obstacle)
     

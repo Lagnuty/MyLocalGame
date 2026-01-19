@@ -14,34 +14,38 @@
         
         body {
             font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-            background: linear-gradient(135deg, #f6f7fb 0%, #dbe9ff 40%, #ffe6e6 100%);
+            background: radial-gradient(circle at 20% 20%, rgba(80, 120, 255, 0.15), transparent 35%),
+                        radial-gradient(circle at 80% 0%, rgba(220, 90, 90, 0.15), transparent 30%),
+                        radial-gradient(circle at 50% 90%, rgba(140, 160, 255, 0.12), transparent 35%),
+                        #0f1624;
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            color: #1b2430;
+            color: #e8ecf5;
         }
         
         .container {
             text-align: center;
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(17, 24, 39, 0.8);
             padding: 32px;
             border-radius: 18px;
-            box-shadow: 0 18px 50px rgba(27, 36, 48, 0.16);
+            box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
             max-width: 1320px;
-            backdrop-filter: blur(6px);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.04);
         }
         
         h1 {
             margin-bottom: 10px;
             font-size: 2.4em;
-            color: #1b2430;
+            color: #f2f5ff;
             letter-spacing: 0.5px;
         }
         
         .subtitle {
             margin-bottom: 18px;
-            color: #4b5b73;
+            color: #9fb0d3;
             font-size: 0.95em;
         }
         
@@ -52,12 +56,12 @@
         input[type="text"] {
             padding: 11px 14px;
             width: 220px;
-            border: 1px solid #ced8ea;
+            border: 1px solid rgba(255,255,255,0.08);
             border-radius: 10px;
             font-size: 1em;
             margin-right: 10px;
-            background: #f8fbff;
-            color: #1b2430;
+            background: rgba(255,255,255,0.05);
+            color: #e8ecf5;
         }
         
         .btn {
@@ -67,30 +71,32 @@
             cursor: pointer;
             font-size: 1em;
             transition: all 0.25s ease;
-            box-shadow: 0 8px 18px rgba(27, 36, 48, 0.15);
+            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.25);
             color: #fff;
         }
         
-        .btn-primary { background: #6c8df5; }
-        .btn-primary:hover { background: #587ce6; transform: translateY(-1px); }
-        .btn-ready { background: #f58c8c; }
-        .btn-ready:hover { background: #e97777; transform: translateY(-1px); }
+        .btn-primary { background: #5a7bff; }
+        .btn-primary:hover { background: #4a6aef; transform: translateY(-1px); }
+        .btn-ready { background: #ff7f88; }
+        .btn-ready:hover { background: #f26973; transform: translateY(-1px); }
         .btn-ghost {
-            background: #ffffff;
-            color: #4b5b73;
-            border: 1px solid #e3eaf5;
+            background: rgba(255,255,255,0.08);
+            color: #d0dbf5;
+            border: 1px solid rgba(255,255,255,0.08);
             box-shadow: none;
         }
-        .btn-ghost:hover { background: #f4f6fb; }
-        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .btn-ghost:hover { background: rgba(255,255,255,0.12); }
+        .btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
         
         #gameCanvas {
-            border: 3px solid #e3eaf5;
-            background: linear-gradient(180deg, #fefefe 0%, #f2f6ff 100%);
+            border: 2px solid rgba(255,255,255,0.06);
+            background: radial-gradient(circle at 20% 20%, rgba(90, 122, 255, 0.08), transparent 40%),
+                        radial-gradient(circle at 80% 50%, rgba(255, 110, 110, 0.08), transparent 35%),
+                        #0c1220;
             display: block;
             margin: 20px auto;
             cursor: none;
-            box-shadow: 0 16px 30px rgba(27, 36, 48, 0.12);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
             border-radius: 12px;
         }
         
@@ -102,11 +108,11 @@
         }
         
         .info-box {
-            background: #f8fbff;
+            background: rgba(255,255,255,0.04);
             padding: 15px;
             border-radius: 10px;
-            border: 1px solid #e3eaf5;
-            box-shadow: 0 6px 12px rgba(27, 36, 48, 0.06);
+            border: 1px solid rgba(255,255,255,0.06);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.25);
         }
         
         .info-box h3 {
@@ -124,11 +130,11 @@
             text-align: left;
             max-height: 180px;
             overflow-y: auto;
-            background: #ffffff;
+            background: rgba(255,255,255,0.04);
             padding: 12px;
             border-radius: 10px;
-            border: 1px solid #e3eaf5;
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
+            border: 1px solid rgba(255,255,255,0.06);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
         }
         
         .player-item {
@@ -141,41 +147,41 @@
         }
         
         .player-item.alive {
-            background: #eaf4ff;
-            border-left: 3px solid #6c8df5;
+            background: rgba(90, 123, 255, 0.12);
+            border-left: 3px solid #5a7bff;
         }
         
         .player-item.dead {
-            background: #ffeaea;
-            border-left: 3px solid #f58c8c;
-            opacity: 0.8;
+            background: rgba(255, 126, 134, 0.12);
+            border-left: 3px solid #ff7f88;
+            opacity: 0.9;
         }
         
         .status {
             margin-top: 15px;
             padding: 12px;
-            background: #f8fbff;
+            background: rgba(255,255,255,0.04);
             border-radius: 10px;
             font-size: 0.95em;
-            border: 1px solid #e3eaf5;
+            border: 1px solid rgba(255,255,255,0.06);
         }
         
-        .status.waiting { color: #f58c8c; }
-        .status.playing { color: #6c8df5; }
-        .status.game-over { color: #c65454; }
+        .status.waiting { color: #ff9aa0; }
+        .status.playing { color: #7fa1ff; }
+        .status.game-over { color: #ff6b6b; }
         
         .instructions {
-            background: #ffffff;
+            background: rgba(255,255,255,0.04);
             padding: 16px;
             border-radius: 10px;
             margin-top: 20px;
             font-size: 0.92em;
             line-height: 1.6;
-            border: 1px solid #e3eaf5;
+            border: 1px solid rgba(255,255,255,0.06);
         }
         
         .instructions strong {
-            color: #6c8df5;
+            color: #7fa1ff;
         }
     </style>
 </head>
@@ -336,11 +342,11 @@
             if (!gameState) return;
             
             // Clear canvas
-            ctx.fillStyle = '#1a1a2e';
+            ctx.fillStyle = '#0c1220';
             ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
             
             // Draw grid
-            ctx.strokeStyle = 'rgba(102, 126, 234, 0.1)';
+            ctx.strokeStyle = 'rgba(127, 161, 255, 0.08)';
             ctx.lineWidth = 1;
             for (let i = 0; i < GAME_WIDTH; i += 40) {
                 ctx.beginPath();
@@ -350,12 +356,12 @@
             }
             
             // Draw obstacles
-            ctx.fillStyle = '#ff6b6b';
+            ctx.fillStyle = '#ff7f88';
             gameState.obstacles.forEach(obs => {
                 ctx.fillRect(obs.x, obs.y, 40, 40);
-                ctx.fillStyle = '#ff9999';
+                ctx.fillStyle = '#ffc2c2';
                 ctx.fillRect(obs.x + 5, obs.y + 5, 30, 30);
-                ctx.fillStyle = '#ff6b6b';
+                ctx.fillStyle = '#ff7f88';
             });
             
             // Draw players
@@ -363,7 +369,7 @@
                 if (!player.alive) return;
                 
                 const isMe = pid === socket.id;
-                ctx.fillStyle = isMe ? '#66c864' : '#667eea';
+                ctx.fillStyle = isMe ? '#7fe0b2' : '#6c8df5';
                 ctx.fillRect(player.x, player.y, PLAYER_WIDTH, PLAYER_HEIGHT);
                 
                 // Draw highlight
@@ -372,14 +378,14 @@
                 ctx.strokeRect(player.x, player.y, PLAYER_WIDTH, PLAYER_HEIGHT);
                 
                 // Draw name
-                ctx.fillStyle = '#fff';
-                ctx.font = 'bold 10px Arial';
+                ctx.fillStyle = '#e8ecf5';
+                ctx.font = 'bold 10px "Segoe UI"';
                 ctx.textAlign = 'center';
                 ctx.fillText(player.name, player.x + PLAYER_WIDTH/2, player.y - 5);
             });
             
             // Draw dead players
-            ctx.fillStyle = 'rgba(200, 100, 100, 0.5)';
+            ctx.fillStyle = 'rgba(255, 126, 134, 0.35)';
             Object.entries(gameState.players).forEach(([pid, player]) => {
                 if (player.alive) return;
                 ctx.fillRect(player.x, player.y, PLAYER_WIDTH, PLAYER_HEIGHT);
