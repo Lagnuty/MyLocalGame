@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎮 Dodger Battle Royale</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+        }
+        
+        .container {
+            text-align: center;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            max-width: 900px;
+        }
+        
+        h1 {
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+        }
+        
+        .subtitle {
+            margin-bottom: 20px;
+            color: #aaa;
+            font-size: 0.9em;
+        }
+        
+        .controls {
+            margin-bottom: 20px;
+        }
+        
+        input[type="text"] {
+            padding: 10px;
+            width: 200px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1em;
+            margin-right: 10px;
+        }
+        
+        button {
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s;
+        }
+        
+        button:hover {
+            background: #764ba2;
+            transform: scale(1.05);
+        }
+        
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: scale(1);
+        }
+        
+        #gameCanvas {
+            border: 3px solid #667eea;
+            background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+            display: block;
+            margin: 20px auto;
+            cursor: none;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+            border-radius: 10px;
+        }
+        
+        .info-panel {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .info-box {
+            background: rgba(102, 126, 234, 0.2);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #667eea;
+        }
+        
+        .info-box h3 {
+            margin-bottom: 8px;
+            font-size: 0.9em;
+            color: #aaa;
+        }
+        
+        .info-box p {
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+        
+        .players-list {
+            text-align: left;
+            max-height: 150px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 8px;
+        }
+        
+        .player-item {
+            padding: 5px;
+            margin: 3px 0;
+            border-radius: 4px;
+            font-size: 0.9em;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .player-item.alive {
+            background: rgba(102, 200, 100, 0.3);
+            border-left: 3px solid #66c864;
+        }
+        
+        .player-item.dead {
+            background: rgba(200, 100, 100, 0.3);
+            border-left: 3px solid #c86464;
+            opacity: 0.6;
+        }
+        
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(102, 126, 234, 0.2);
+            border-radius: 8px;
+            font-size: 0.95em;
+        }
+        
+        .status.waiting {
+            color: #ffd700;
+        }
+        
+        .status.playing {
+            color: #66c864;
+        }
+        
+        .status.game-over {
+            color: #ff6b6b;
+        }
+        
+        .instructions {
+            background: rgba(102, 126, 234, 0.1);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-size: 0.9em;
+            line-height: 1.6;
+        }
+        
+        .instructions strong {
+            color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 Dodger Battle Royale</h1>
+        <div class="subtitle">Многопользовательская игра на локальной сети</div>
+        
+        <div class="controls">
+            <input type="text" id="playerName" placeholder="Введите ваше имя" maxlength="15">
+            <button id="joinBtn" onclick="joinGame()">Присоединиться</button>
+            <button id="startBtn" onclick="startRound()" disabled>Начать раунд</button>
+        </div>
+        
+        <div class="info-panel">
+            <div class="info-box">
+                <h3>Игроки в игре</h3>
+                <p id="playerCount">0</p>
+            </div>
+            <div class="info-box">
+                <h3>Волна</h3>
+                <p id="waveCount">0</p>
+            </div>
+        </div>
+        
+        <canvas id="gameCanvas" width="800" height="400"></canvas>
+        
+        <div class="players-list" id="playersList">
+            <strong>Подключитесь чтобы увидеть игроков...</strong>
+        </div>
+        
+        <div class="status waiting" id="status">Ожидание подключения...</div>
+        
+        <div class="instructions">
+            <strong>📋 Правила:</strong><br>
+            ➡️ Стрелки (← →) для движения влево/вправо<br>
+            💥 Уворачивайтесь от препятствий<br>
+            🏆 Последний выживший побеждает!<br>
+            🔄 После раунда можно сыграть ещё
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const socket = io();
+        
+        let gameState = null;
+        let playerId = null;
+        let playerName = '';
+        let keysPressed = {};
+        let joined = false;
+        
+        const GAME_WIDTH = 800;
+        const GAME_HEIGHT = 400;
+        const PLAYER_WIDTH = 30;
+        const PLAYER_HEIGHT = 30;
+        const PLAYER_SPEED = 6;
+        
+        // Keyboard controls
+        document.addEventListener('keydown', (e) => {
+            keysPressed[e.key] = true;
+            
+            if (playerId && gameState && gameState.round_active) {
+                const player = gameState.players[playerId];
+                if (player && player.alive) {
+                    if (e.key === 'ArrowLeft') {
+                        player.x = Math.max(0, player.x - PLAYER_SPEED);
+                    } else if (e.key === 'ArrowRight') {
+                        player.x = Math.min(GAME_WIDTH - PLAYER_WIDTH, player.x + PLAYER_SPEED);
+                    }
+                    socket.emit('player_move', {x: player.x});
+                }
+            }
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            keysPressed[e.key] = false;
+        });
+        
+        function joinGame() {
+            if (joined) return;
+            
+            playerName = document.getElementById('playerName').value.trim() || `Player ${Math.floor(Math.random()*1000)}`;
+            socket.emit('join_game', {name: playerName});
+            
+            document.getElementById('joinBtn').disabled = true;
+            document.getElementById('joinBtn').textContent = 'Подключено ✓';
+            document.getElementById('playerName').disabled = true;
+            joined = true;
+        }
+        
+        function startRound() {
+            socket.emit('start_round');
+        }
+        
+        socket.on('game_state', (state) => {
+            gameState = state;
+            updateUI();
+            drawGame();
+        });
+        
+        socket.on('round_end', (data) => {
+            alert(`🏆 Раунд закончился!\n🥇 Победитель: ${data.winner}`);
+            document.getElementById('status').textContent = `Раунд завершён! Победитель: ${data.winner}`;
+            document.getElementById('status').className = 'status game-over';
+        });
+        
+        function updateUI() {
+            if (!gameState) return;
+            
+            const playerCount = Object.keys(gameState.players).length;
+            const aliveCount = Object.values(gameState.players).filter(p => p.alive).length;
+            
+            document.getElementById('playerCount').textContent = `${aliveCount}/${playerCount}`;
+            document.getElementById('waveCount').textContent = gameState.wave || '-';
+            
+            // Update status
+            const statusEl = document.getElementById('status');
+            if (gameState.round_active) {
+                statusEl.textContent = `🎮 Игра в процессе! Осталось: ${aliveCount}`;
+                statusEl.className = 'status playing';
+            } else if (playerCount > 0) {
+                statusEl.textContent = `⏱️ Ожидание начала раунда (игроков: ${playerCount})`;
+                statusEl.className = 'status waiting';
+                if (playerCount >= 1) {
+                    document.getElementById('startBtn').disabled = false;
+                }
+            }
+            
+            // Update players list
+            let playersList = '';
+            Object.entries(gameState.players)
+                .sort((a, b) => (b[1].score || 0) - (a[1].score || 0))
+                .forEach(([pid, player]) => {
+                    const className = player.alive ? 'alive' : 'dead';
+                    const status = player.alive ? '✓' : '✗';
+                    playersList += `<div class="player-item ${className}">${player.name} ${status} <strong>${player.score || 0}</strong></div>`;
+                });
+            
+            document.getElementById('playersList').innerHTML = playersList || '<em>Нет игроков</em>';
+        }
+        
+        function drawGame() {
+            if (!gameState) return;
+            
+            // Clear canvas
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+            
+            // Draw grid
+            ctx.strokeStyle = 'rgba(102, 126, 234, 0.1)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < GAME_WIDTH; i += 40) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, GAME_HEIGHT);
+                ctx.stroke();
+            }
+            
+            // Draw obstacles
+            ctx.fillStyle = '#ff6b6b';
+            gameState.obstacles.forEach(obs => {
+                ctx.fillRect(obs.x, obs.y, 40, 40);
+                ctx.fillStyle = '#ff9999';
+                ctx.fillRect(obs.x + 5, obs.y + 5, 30, 30);
+                ctx.fillStyle = '#ff6b6b';
+            });
+            
+            // Draw players
+            Object.entries(gameState.players).forEach(([pid, player]) => {
+                if (!player.alive) return;
+                
+                const isMe = pid === socket.id;
+                ctx.fillStyle = isMe ? '#66c864' : '#667eea';
+                ctx.fillRect(player.x, player.y, PLAYER_WIDTH, PLAYER_HEIGHT);
+                
+                // Draw highlight
+                ctx.strokeStyle = isMe ? '#fff' : 'rgba(255, 255, 255, 0.5)';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(player.x, player.y, PLAYER_WIDTH, PLAYER_HEIGHT);
+                
+                // Draw name
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 10px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(player.name, player.x + PLAYER_WIDTH/2, player.y - 5);
+            });
+            
+            // Draw dead players
+            ctx.fillStyle = 'rgba(200, 100, 100, 0.5)';
+            Object.entries(gameState.players).forEach(([pid, player]) => {
+                if (player.alive) return;
+                ctx.fillRect(player.x, player.y, PLAYER_WIDTH, PLAYER_HEIGHT);
+            });
+            
+            // Draw bottom instruction
+            if (!gameState.round_active) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(0, GAME_HEIGHT - 40, GAME_WIDTH, 40);
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 16px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('Нажми кнопку "Начать раунд"', GAME_WIDTH/2, GAME_HEIGHT - 15);
+            }
+        }
+        
+        // Animation loop
+        function gameLoop() {
+            drawGame();
+            requestAnimationFrame(gameLoop);
+        }
+        
+        gameLoop();
+        
+        // Get player ID
+        socket.on('connection_response', () => {
+            playerId = socket.id;
+        });
+    </script>
+</body>
+</html>
