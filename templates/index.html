@@ -218,10 +218,11 @@
         
         <div class="instructions">
             <strong>📋 Правила:</strong><br>
-            ⬆️⬇️⬅️➡️ Стрелки для движения по полю<br>
-            💥 Уворачивайтесь от препятствий<br>
+            ⬆️⬇️⬅️➡️ или WASD для движения по полю<br>
+            💥 Уворачивайтесь от препятствий, собирайте зелёные сферы для +1 очка<br>
+            ⭐ Руны усиления: 🟡щит (неуязвимость), 🔴ускорение (раздвижь+скорость), 🔵заморозка (замедли препятствия)<br>
             🏆 Последний выживший побеждает!<br>
-            🗳️ Раунд стартует, когда все нажмут «Готов»
+            🗳️ Раунд стартует, когда все нажмут «Готов»<br>
             🔄 После раунда нажмите «Готов» снова
         </div>
     </div>
@@ -237,6 +238,8 @@
         let keysPressed = {};
         let joined = false;
         let readySent = false;
+        let lastPlayerPositions = {};  // for smooth interpolation
+        let moveSendThrottle = 0;
         
         const GAME_WIDTH = 1200;
         const GAME_HEIGHT = 600;
@@ -280,8 +283,22 @@
             return;
         }
         
-        socket.on('game_state', (state) => {
-            gameState = state;
+        socket.on('gs', (delta) => {
+            if (!gameState) gameState = {p: {}, o: [], u: [], w: 0, g: false};
+            // Store last positions for interpolation
+            Object.keys(delta.p || {}).forEach(pid => {
+                if (!lastPlayerPositions[pid]) lastPlayerPositions[pid] = {x: 0, y: 0};
+                if (gameState.p && gameState.p[pid]) {
+                    lastPlayerPositions[pid].x = gameState.p[pid].x;
+                    lastPlayerPositions[pid].y = gameState.p[pid].y;
+                }
+            });
+            // Merge delta
+            if (delta.p) gameState.p = delta.p;
+            if (delta.o) gameState.o = delta.o;
+            if (delta.u) gameState.u = delta.u;
+            if (delta.w !== undefined) gameState.w = delta.w;
+            if (delta.g !== undefined) gameState.g = delta.g;
             updateUI();
             drawGame();
         });
@@ -305,16 +322,17 @@
         function updateUI() {
             if (!gameState) return;
             
-            const playerCount = Object.keys(gameState.players).length;
-            const aliveCount = Object.values(gameState.players).filter(p => p.alive).length;
-            const readyCount = Object.values(gameState.players).filter(p => p.ready).length;
+            const players = gameState.p || {};
+            const playerCount = Object.keys(players).length;
+            const aliveCount = Object.values(players).filter(p => p.a).length;
+            const readyCount = Object.values(players).filter(p => p.rd).length;
             
             document.getElementById('playerCount').textContent = `${aliveCount}/${playerCount} | Готовы: ${readyCount}`;
-            document.getElementById('waveCount').textContent = gameState.wave || '-';
+            document.getElementById('waveCount').textContent = gameState.w || '-';
             
             // Update status
             const statusEl = document.getElementById('status');
-            if (gameState.round_active) {
+            if (gameState.g) {
                 statusEl.textContent = `🎮 Игра в процессе! Осталось: ${aliveCount}`;
                 statusEl.className = 'status playing';
             } else if (playerCount > 0) {
@@ -326,13 +344,13 @@
             
             // Update players list
             let playersList = '';
-            Object.entries(gameState.players)
-                .sort((a, b) => (b[1].score || 0) - (a[1].score || 0))
+            Object.entries(players)
+                .sort((a, b) => (b[1].s || 0) - (a[1].s || 0))
                 .forEach(([pid, player]) => {
-                    const className = player.alive ? 'alive' : 'dead';
-                    const aliveStatus = player.alive ? '🟢' : '☠️';
-                    const readyStatus = player.ready ? '✅' : '⌛';
-                    playersList += `<div class="player-item ${className}">${player.name} ${aliveStatus} ${readyStatus} <strong>${player.score || 0}</strong></div>`;
+                    const className = player.a ? 'alive' : 'dead';
+                    const aliveStatus = player.a ? '🟢' : '☠️';
+                    const readyStatus = player.rd ? '✅' : '⌛';
+                    playersList += `<div class="player-item ${className}">${player.nm} ${aliveStatus} ${readyStatus} <strong>${player.s || 0}</strong></div>`;
                 });
             
             document.getElementById('playersList').innerHTML = playersList || '<em>Нет игроков</em>';
@@ -340,6 +358,10 @@
         
         function drawGame() {
             if (!gameState) return;
+            
+            const players = gameState.p || {};
+            const obstacles = gameState.o || [];
+            const powerups = gameState.u || [];
             
             // Clear canvas
             ctx.fillStyle = '#0c1220';
@@ -354,52 +376,89 @@
                 ctx.lineTo(i, GAME_HEIGHT);
                 ctx.stroke();
             }
+
+            // Draw powerups
+            powerups.forEach(p => {
+                const [px, py, type] = p;
+                if (type === 'bonus') {
+                    ctx.fillStyle = '#7fe0b2';
+                } else if (type === 'shield') {
+                    ctx.fillStyle = '#ffd93d';
+                } else if (type === 'speed') {
+                    ctx.fillStyle = '#ff6b9d';
+                } else if (type === 'freeze') {
+                    ctx.fillStyle = '#6bcbff';
+                }
+                ctx.beginPath();
+                ctx.arc(px + 12, py + 12, 12, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+            });
             
             // Draw obstacles
             ctx.fillStyle = '#ff7f88';
-            gameState.obstacles.forEach(obs => {
-                ctx.fillRect(obs.x, obs.y, 40, 40);
+            obstacles.forEach(obs => {
+                const [ox, oy] = obs;
+                ctx.fillRect(ox, oy, 40, 40);
                 ctx.fillStyle = '#ffc2c2';
-                ctx.fillRect(obs.x + 5, obs.y + 5, 30, 30);
+                ctx.fillRect(ox + 5, oy + 5, 30, 30);
                 ctx.fillStyle = '#ff7f88';
             });
             
             // Draw players
-            Object.entries(gameState.players).forEach(([pid, player]) => {
-                if (!player.alive) return;
+            Object.entries(players).forEach(([pid, player]) => {
+                if (!player.a) return;
                 
                 const isMe = pid === socket.id;
+                const px = player.x, py = player.y;
+                
+                // Draw rune aura if active
+                if (player.r) {
+                    let auraColor = '#ffd93d';
+                    if (player.r === 'shield') auraColor = '#ffd93d';
+                    if (player.r === 'speed') auraColor = '#ff6b9d';
+                    if (player.r === 'freeze') auraColor = '#6bcbff';
+                    
+                    ctx.strokeStyle = auraColor;
+                    ctx.lineWidth = 3;
+                    ctx.globalAlpha = 0.6;
+                    ctx.strokeRect(px - 3, py - 3, PLAYER_WIDTH + 6, PLAYER_HEIGHT + 6);
+                    ctx.globalAlpha = 1.0;
+                }
+                
                 ctx.fillStyle = isMe ? '#7fe0b2' : '#6c8df5';
-                ctx.fillRect(player.x, player.y, PLAYER_WIDTH, PLAYER_HEIGHT);
+                ctx.fillRect(px, py, PLAYER_WIDTH, PLAYER_HEIGHT);
                 
                 // Draw highlight
                 ctx.strokeStyle = isMe ? '#fff' : 'rgba(255, 255, 255, 0.5)';
                 ctx.lineWidth = 2;
-                ctx.strokeRect(player.x, player.y, PLAYER_WIDTH, PLAYER_HEIGHT);
+                ctx.strokeRect(px, py, PLAYER_WIDTH, PLAYER_HEIGHT);
                 
                 // Draw name
                 ctx.fillStyle = '#e8ecf5';
                 ctx.font = 'bold 10px "Segoe UI"';
                 ctx.textAlign = 'center';
-                ctx.fillText(player.name, player.x + PLAYER_WIDTH/2, player.y - 5);
+                ctx.fillText(player.nm, px + PLAYER_WIDTH/2, py - 5);
             });
             
             // Draw dead players
             ctx.fillStyle = 'rgba(255, 126, 134, 0.35)';
-            Object.entries(gameState.players).forEach(([pid, player]) => {
-                if (player.alive) return;
+            Object.entries(players).forEach(([pid, player]) => {
+                if (player.a) return;
                 ctx.fillRect(player.x, player.y, PLAYER_WIDTH, PLAYER_HEIGHT);
             });
             
             // Draw bottom instruction
-            if (!gameState.round_active) {
+            if (!gameState.g) {
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
                 ctx.fillRect(0, GAME_HEIGHT - 40, GAME_WIDTH, 40);
                 ctx.fillStyle = '#fff';
                 ctx.font = 'bold 16px Arial';
                 ctx.textAlign = 'center';
-                const playerCount = Object.keys(gameState.players).length;
-                const readyCount = Object.values(gameState.players).filter(p => p.ready).length;
+                const playerCount = Object.keys(players).length;
+                const readyCount = Object.values(players).filter(p => p.rd).length;
                 ctx.fillText(`Голосуем за старт: ${readyCount}/${playerCount} готовы`, GAME_WIDTH/2, GAME_HEIGHT - 15);
             }
         }
@@ -414,21 +473,26 @@
 
         // Continuous input handling (держи стрелки для движения)
         function handleInput() {
-            if (gameState && playerId && gameState.players[playerId] && gameState.round_active) {
-                const me = gameState.players[playerId];
-                if (me.alive) {
+            if (gameState && playerId && gameState.p && gameState.p[playerId] && gameState.g) {
+                const me = gameState.p[playerId];
+                if (me.a) {
                     let x = me.x;
                     let y = me.y;
-                    if (keysPressed['ArrowLeft']) x -= PLAYER_SPEED;
-                    if (keysPressed['ArrowRight']) x += PLAYER_SPEED;
-                    if (keysPressed['ArrowUp']) y -= PLAYER_SPEED;
-                    if (keysPressed['ArrowDown']) y += PLAYER_SPEED;
+                    if (keysPressed['ArrowLeft'] || keysPressed['a'] || keysPressed['A']) x -= PLAYER_SPEED;
+                    if (keysPressed['ArrowRight'] || keysPressed['d'] || keysPressed['D']) x += PLAYER_SPEED;
+                    if (keysPressed['ArrowUp'] || keysPressed['w'] || keysPressed['W']) y -= PLAYER_SPEED;
+                    if (keysPressed['ArrowDown'] || keysPressed['s'] || keysPressed['S']) y += PLAYER_SPEED;
                     x = Math.max(0, Math.min(x, GAME_WIDTH - PLAYER_WIDTH));
                     y = Math.max(0, Math.min(y, GAME_HEIGHT - PLAYER_HEIGHT));
                     if (x !== me.x || y !== me.y) {
                         me.x = x;
                         me.y = y;
-                        socket.emit('player_move', {x, y});
+                        // Throttle: send every 50ms (~3 frames at 60fps)
+                        if (moveSendThrottle <= 0) {
+                            socket.emit('player_move', {x, y});
+                            moveSendThrottle = 3;
+                        }
+                        moveSendThrottle--;
                     }
                 }
             }

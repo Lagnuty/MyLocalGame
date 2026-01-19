@@ -16,10 +16,14 @@ OBSTACLE_HEIGHT = 40
 PLAYER_WIDTH = 30
 PLAYER_HEIGHT = 30
 OBSTACLE_SPEED_BASE = 5
-OBSTACLE_SPEED_MAX = 12
-WAVE_TICKS = 600  # ~10 секунд при 60 FPS
+OBSTACLE_SPEED_MAX = 13
+WAVE_TICKS = 420  # ~7 секунд при 60 FPS
 MAX_OBSTACLES = 10
 SAFE_GAP = PLAYER_HEIGHT + 10
+POWERUP_SIZE = 24
+MAX_POWERUPS = 3
+POWERUP_TYPES = ['bonus', 'shield', 'speed', 'freeze']  # bonus=+1 score, others=runes
+RUNE_DURATION = 240  # ~4 сек при 60 FPS
 
 class GameState:
     def __init__(self):
@@ -32,15 +36,26 @@ class GameState:
         self.last_spawn_y = None
         self.obstacle_speed = OBSTACLE_SPEED_BASE
         self.wave_timer = 0
+        self.powerups = []  # [{x, y, type}]
+        self.powerup_counter = 0
+        self.last_broadcast_state = None
+        self.broadcast_throttle = 0
         
     def add_player(self, player_id, name):
         self.players[player_id] = {
             'name': name,
+            'nm': name,  # compact
             'x': GAME_WIDTH // 2,
             'y': GAME_HEIGHT - 60,
             'alive': True,
+            'a': True,  # compact
             'score': 0,
-            'ready': False
+            's': 0,  # compact
+            'ready': False,
+            'rd': False,  # compact
+            'active_rune': None,
+            'r': None,  # compact
+            'rune_timer': 0
         }
         
     def remove_player(self, player_id):
@@ -95,8 +110,11 @@ def on_player_move(data):
         # Constrain to game bounds
         x = max(0, min(x, GAME_WIDTH - PLAYER_WIDTH))
         y = max(0, min(y, GAME_HEIGHT - PLAYER_HEIGHT))
-        game_state.players[player_id]['x'] = x
-        game_state.players[player_id]['y'] = y
+        old_x, old_y = game_state.players[player_id]['x'], game_state.players[player_id]['y']
+        # Only update if moved >2 pixels
+        if abs(x - old_x) > 2 or abs(y - old_y) > 2:
+            game_state.players[player_id]['x'] = x
+            game_state.players[player_id]['y'] = y
 
 @socketio.on('disconnect')
 def on_disconnect():
@@ -108,13 +126,21 @@ def on_disconnect():
         broadcast_game_state()
 
 def broadcast_game_state():
+    if game_state.broadcast_throttle > 0:
+        game_state.broadcast_throttle -= 1
+        return
+    game_state.broadcast_throttle = 0  # send every ~2 frames
+    
+    # Compact delta format
     state = {
-        'players': game_state.players,
-        'obstacles': game_state.obstacles,
-        'round_active': game_state.round_active,
-        'wave': game_state.wave
+        'p': {pid: {'x': p['x'], 'y': p['y'], 'a': p.get('a'), 'rd': p.get('rd'), 'r': p.get('r'), 'nm': p.get('nm'), 's': p.get('s')} 
+              for pid, p in game_state.players.items()},
+        'o': [[o['x'], o['y']] for o in game_state.obstacles],
+        'u': [[u['x'], u['y'], u['type']] for u in game_state.powerups],
+        'w': game_state.wave,
+        'g': game_state.round_active
     }
-    socketio.emit('game_state', state, to=None)
+    socketio.emit('gs', state)
 
 
 def has_safe_gap(obstacles):
@@ -133,6 +159,8 @@ def start_round(force=False):
         game_state.wave = 1  # reset waves so they don't stack across rounds
         game_state.spawn_counter = 0
         game_state.obstacles = []
+        game_state.powerups = []
+        game_state.powerup_counter = 0
         game_state.elimination_order = []
         game_state.last_spawn_y = None
         game_state.obstacle_speed = OBSTACLE_SPEED_BASE
@@ -141,10 +169,12 @@ def start_round(force=False):
         # Reset all players
         for player in game_state.players.values():
             player['alive'] = True
+            player['a'] = True
             player['x'] = GAME_WIDTH // 2
             player['y'] = GAME_HEIGHT - 60
             # Require повторное голосование в следующих раундах
             player['ready'] = False
+            player['rd'] = False
         
         broadcast_game_state()
         print(f'Round started with {len(game_state.players)} players')
@@ -157,11 +187,11 @@ def game_loop():
     game_state.wave_timer += 1
     if game_state.wave_timer % WAVE_TICKS == 0:
         game_state.wave += 1
-        game_state.obstacle_speed = min(OBSTACLE_SPEED_MAX, OBSTACLE_SPEED_BASE + 0.8 * (game_state.wave - 1))
+        game_state.obstacle_speed = min(OBSTACLE_SPEED_MAX, OBSTACLE_SPEED_BASE + 1.0 * (game_state.wave - 1))
 
     # Spawn obstacles with guaranteed gap and cap
     game_state.spawn_counter += 1
-    spawn_interval = max(6, 18 - game_state.wave)  # smoother pace
+    spawn_interval = max(5, 14 - game_state.wave)  # faster progression
     if len(game_state.obstacles) < MAX_OBSTACLES and game_state.spawn_counter % spawn_interval == 0:
         tries = 6
         candidate_y = None
@@ -180,12 +210,34 @@ def game_loop():
         if candidate_y is not None:
             game_state.obstacles.append({'x': GAME_WIDTH, 'y': candidate_y})
             game_state.last_spawn_y = candidate_y
+
+    # Spawn powerups/runes occasionally
+    game_state.powerup_counter += 1
+    if len(game_state.powerups) < MAX_POWERUPS and game_state.powerup_counter % 320 == 0:
+        py = random.randint(0, GAME_HEIGHT - POWERUP_SIZE)
+        ptype = random.choice(POWERUP_TYPES)
+        game_state.powerups.append({'x': GAME_WIDTH, 'y': py, 'type': ptype})
     
-    # Move obstacles
+    # Move obstacles (with freeze slowdown if rune active)
+    has_freeze = any(p.get('active_rune') == 'freeze' for p in game_state.players.values())
+    speed_mult = 0.35 if has_freeze else 1.0  # slow when freeze active
     for obstacle in game_state.obstacles[:]:
-        obstacle['x'] -= game_state.obstacle_speed
+        obstacle['x'] -= game_state.obstacle_speed * speed_mult
         if obstacle['x'] < -OBSTACLE_WIDTH:
             game_state.obstacles.remove(obstacle)
+
+    # Move powerups (slower than obstacles)
+    for powerup in game_state.powerups[:]:
+        powerup['x'] -= game_state.obstacle_speed * 0.6
+        if powerup['x'] < -POWERUP_SIZE:
+            game_state.powerups.remove(powerup)
+
+    # Update rune timers and apply effects
+    for player in game_state.players.values():
+        if player.get('active_rune'):
+            player['rune_timer'] -= 1
+            if player['rune_timer'] <= 0:
+                player['active_rune'] = None
     
     # Check collisions
     for player_id, player in game_state.players.items():
@@ -193,16 +245,37 @@ def game_loop():
             continue
         
         px, py = player['x'], player['y']
-        for obstacle in game_state.obstacles:
-            ox, oy = obstacle['x'], obstacle['y']
-            
-            # Simple AABB collision
-            if (px < ox + OBSTACLE_WIDTH and
-                px + PLAYER_WIDTH > ox and
-                py < oy + OBSTACLE_HEIGHT and
-                py + PLAYER_HEIGHT > oy):
-                player['alive'] = False
-                game_state.elimination_order.append((player_id, datetime.utcnow()))
+
+        # Powerup pickup
+        for powerup in game_state.powerups[:]:
+            ux, uy = powerup['x'], powerup['y']
+            if (px < ux + POWERUP_SIZE and
+                px + PLAYER_WIDTH > ux and
+                py < uy + POWERUP_SIZE and
+                py + PLAYER_HEIGHT > uy):
+                ptype = powerup.get('type', 'bonus')
+                if ptype == 'bonus':
+                    game_state.players[player_id]['score'] += 1
+                    game_state.players[player_id]['s'] = game_state.players[player_id]['score']
+                else:  # shield, speed, freeze
+                    game_state.players[player_id]['active_rune'] = ptype
+                    game_state.players[player_id]['r'] = ptype
+                    game_state.players[player_id]['rune_timer'] = RUNE_DURATION
+                game_state.powerups.remove(powerup)
+
+        # Obstacle collisions (shield blocks damage)
+        if player.get('active_rune') != 'shield':
+            for obstacle in game_state.obstacles:
+                ox, oy = obstacle['x'], obstacle['y']
+                
+                # Simple AABB collision
+                if (px < ox + OBSTACLE_WIDTH and
+                    px + PLAYER_WIDTH > ox and
+                    py < oy + OBSTACLE_HEIGHT and
+                    py + PLAYER_HEIGHT > oy):
+                    player['alive'] = False
+                    player['a'] = False
+                    game_state.elimination_order.append((player_id, datetime.utcnow()))
     
     # Check if round is over
     alive_count = game_state.get_alive_count()
@@ -226,6 +299,7 @@ def game_loop():
             if pid in game_state.players and idx < len(points_table):
                 pts = points_table[idx]
                 game_state.players[pid]['score'] += pts
+                game_state.players[pid]['s'] = game_state.players[pid]['score']
                 placement_info.append({'name': game_state.players[pid]['name'], 'points': pts, 'place': idx + 1})
 
         # Reset wave counter after round ends
@@ -250,6 +324,7 @@ def on_player_ready():
     if not player_id or player_id not in game_state.players:
         return
     game_state.players[player_id]['ready'] = True
+    game_state.players[player_id]['rd'] = True
     broadcast_game_state()
     if not game_state.round_active and game_state.all_ready():
         start_round()
