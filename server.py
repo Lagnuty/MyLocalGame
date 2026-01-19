@@ -9,8 +9,8 @@ app.config['SECRET_KEY'] = 'dodger_battle_royale_secret'
 socketio = SocketIO(app, cors_allowed_origins="*", ping_timeout=60, ping_interval=25)
 
 # Game state
-GAME_WIDTH = 800
-GAME_HEIGHT = 400
+GAME_WIDTH = 1200
+GAME_HEIGHT = 600
 OBSTACLE_WIDTH = 40
 OBSTACLE_HEIGHT = 40
 PLAYER_WIDTH = 30
