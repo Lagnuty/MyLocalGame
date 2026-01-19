@@ -54,8 +54,13 @@ def index():
     return render_template('index.html')
 
 @socketio.on('connect')
-def on_connect():
-    print(f'Client connected: {dict(request.args)}')
+def on_connect(auth=None):
+    # auth arg is passed by recent Flask-SocketIO; keep compatible
+    try:
+        client_args = dict(request.args) if request else {}
+    except Exception:
+        client_args = {}
+    print(f'Client connected: {client_args}')
     emit('connection_response', {'data': 'Connected'})
 
 @socketio.on('join_game')
@@ -80,8 +85,8 @@ def on_player_move(data):
 
 @socketio.on('disconnect')
 def on_disconnect():
-    player_id = request.sid
-    if player_id in game_state.players:
+    player_id = request.sid if request else None
+    if player_id and player_id in game_state.players:
         player_name = game_state.players[player_id]['name']
         game_state.remove_player(player_id)
         print(f'Player left: {player_name}')
