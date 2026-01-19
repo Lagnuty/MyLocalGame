@@ -16,6 +16,8 @@ OBSTACLE_HEIGHT = 40
 PLAYER_WIDTH = 30
 PLAYER_HEIGHT = 30
 OBSTACLE_SPEED = 5
+MAX_OBSTACLES = 10
+SAFE_GAP = PLAYER_HEIGHT + 10
 
 class GameState:
     def __init__(self):
@@ -24,6 +26,8 @@ class GameState:
         self.round_active = False
         self.wave = 0
         self.spawn_counter = 0
+        self.elimination_order = []  # [(player_id, timestamp)]
+        self.last_spawn_y = None
         
     def add_player(self, player_id, name):
         self.players[player_id] = {
@@ -108,12 +112,25 @@ def broadcast_game_state():
     }
     socketio.emit('game_state', state, to=None)
 
+
+def has_safe_gap(obstacles):
+    # Ensure there is at least one vertical gap for the player to pass
+    intervals = sorted((o['y'], o['y'] + OBSTACLE_HEIGHT) for o in obstacles)
+    prev = 0
+    for start, end in intervals:
+        if start - prev >= SAFE_GAP:
+            return True
+        prev = max(prev, end)
+    return GAME_HEIGHT - prev >= SAFE_GAP
+
 def start_round(force=False):
     if len(game_state.players) >= 1 and (force or game_state.all_ready()):
         game_state.round_active = True
-        game_state.wave += 1
+        game_state.wave = 1  # reset waves so they don't stack across rounds
         game_state.spawn_counter = 0
         game_state.obstacles = []
+        game_state.elimination_order = []
+        game_state.last_spawn_y = None
         
         # Reset all players
         for player in game_state.players.values():
@@ -124,19 +141,33 @@ def start_round(force=False):
             player['ready'] = False
         
         broadcast_game_state()
-        print(f'Round {game_state.wave} started with {len(game_state.players)} players')
+        print(f'Round started with {len(game_state.players)} players')
 
 def game_loop():
     if not game_state.round_active:
         return
-    
-    # Spawn obstacles
+
+    # Spawn obstacles with guaranteed gap and cap
     game_state.spawn_counter += 1
-    if game_state.spawn_counter % max(1, 15 - game_state.wave) == 0:
-        game_state.obstacles.append({
-            'x': GAME_WIDTH,
-            'y': random.randint(0, GAME_HEIGHT - OBSTACLE_HEIGHT)
-        })
+    spawn_interval = max(6, 18 - game_state.wave)  # smoother pace
+    if len(game_state.obstacles) < MAX_OBSTACLES and game_state.spawn_counter % spawn_interval == 0:
+        tries = 6
+        candidate_y = None
+        for _ in range(tries):
+            base = game_state.last_spawn_y
+            if base is None:
+                y = random.randint(0, GAME_HEIGHT - OBSTACLE_HEIGHT)
+            else:
+                # bias away from last spawn to avoid stacking
+                offset = random.choice([-1, 1]) * random.randint(OBSTACLE_HEIGHT, 3 * OBSTACLE_HEIGHT)
+                y = max(0, min(GAME_HEIGHT - OBSTACLE_HEIGHT, base + offset))
+            tmp_obstacles = game_state.obstacles + [{'x': GAME_WIDTH, 'y': y}]
+            if has_safe_gap(tmp_obstacles):
+                candidate_y = y
+                break
+        if candidate_y is not None:
+            game_state.obstacles.append({'x': GAME_WIDTH, 'y': candidate_y})
+            game_state.last_spawn_y = candidate_y
     
     # Move obstacles
     for obstacle in game_state.obstacles[:]:
@@ -159,17 +190,39 @@ def game_loop():
                 py < oy + OBSTACLE_HEIGHT and
                 py + PLAYER_HEIGHT > oy):
                 player['alive'] = False
+                game_state.elimination_order.append((player_id, datetime.utcnow()))
     
     # Check if round is over
     alive_count = game_state.get_alive_count()
     if alive_count <= 1 and len(game_state.players) > 1:
         game_state.round_active = False
         winner_id = game_state.get_winner()
-        if winner_id and winner_id in game_state.players:
-            game_state.players[winner_id]['score'] += 1
-        
+
+        # Determine placements: winner first, then last eliminated, etc.
+        placements = []
+        if winner_id:
+            placements.append(winner_id)
+        # Add eliminated players in reverse elimination (last longer = higher place)
+        for pid, _ts in reversed(game_state.elimination_order):
+            if pid not in placements:
+                placements.append(pid)
+
+        # Award points: 1st=3, 2nd=2, 3rd=1
+        points_table = [3, 2, 1]
+        placement_info = []
+        for idx, pid in enumerate(placements):
+            if pid in game_state.players and idx < len(points_table):
+                pts = points_table[idx]
+                game_state.players[pid]['score'] += pts
+                placement_info.append({'name': game_state.players[pid]['name'], 'points': pts, 'place': idx + 1})
+
+        # Reset wave counter after round ends
+        game_state.wave = 0
         broadcast_game_state()
-        socketio.emit('round_end', {'winner': game_state.players.get(winner_id, {}).get('name', 'Unknown')})
+        socketio.emit('round_end', {
+            'winner': game_state.players.get(winner_id, {}).get('name', 'Unknown'),
+            'placements': placement_info
+        })
     else:
         broadcast_game_state()
 

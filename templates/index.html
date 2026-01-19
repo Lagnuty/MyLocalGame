@@ -13,34 +13,36 @@
         }
         
         body {
-            font-family: Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #f6f7fb 0%, #dbe9ff 40%, #ffe6e6 100%);
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            color: #fff;
+            color: #1b2430;
         }
         
         .container {
             text-align: center;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-            max-width: 900px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 32px;
+            border-radius: 18px;
+            box-shadow: 0 18px 50px rgba(27, 36, 48, 0.16);
+            max-width: 960px;
+            backdrop-filter: blur(6px);
         }
         
         h1 {
             margin-bottom: 10px;
-            font-size: 2.5em;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+            font-size: 2.4em;
+            color: #1b2430;
+            letter-spacing: 0.5px;
         }
         
         .subtitle {
-            margin-bottom: 20px;
-            color: #aaa;
-            font-size: 0.9em;
+            margin-bottom: 18px;
+            color: #4b5b73;
+            font-size: 0.95em;
         }
         
         .controls {
@@ -48,44 +50,48 @@
         }
         
         input[type="text"] {
-            padding: 10px;
-            width: 200px;
-            border: none;
-            border-radius: 5px;
+            padding: 11px 14px;
+            width: 220px;
+            border: 1px solid #ced8ea;
+            border-radius: 10px;
             font-size: 1em;
             margin-right: 10px;
+            background: #f8fbff;
+            color: #1b2430;
         }
         
-        button {
-            padding: 10px 20px;
-            background: #667eea;
-            color: white;
+        .btn {
+            padding: 11px 20px;
             border: none;
-            border-radius: 5px;
+            border-radius: 10px;
             cursor: pointer;
             font-size: 1em;
-            transition: all 0.3s;
+            transition: all 0.25s ease;
+            box-shadow: 0 8px 18px rgba(27, 36, 48, 0.15);
+            color: #fff;
         }
         
-        button:hover {
-            background: #764ba2;
-            transform: scale(1.05);
+        .btn-primary { background: #6c8df5; }
+        .btn-primary:hover { background: #587ce6; transform: translateY(-1px); }
+        .btn-ready { background: #f58c8c; }
+        .btn-ready:hover { background: #e97777; transform: translateY(-1px); }
+        .btn-ghost {
+            background: #ffffff;
+            color: #4b5b73;
+            border: 1px solid #e3eaf5;
+            box-shadow: none;
         }
-        
-        button:disabled {
-            background: #666;
-            cursor: not-allowed;
-            transform: scale(1);
-        }
+        .btn-ghost:hover { background: #f4f6fb; }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
         
         #gameCanvas {
-            border: 3px solid #667eea;
-            background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+            border: 3px solid #e3eaf5;
+            background: linear-gradient(180deg, #fefefe 0%, #f2f6ff 100%);
             display: block;
             margin: 20px auto;
             cursor: none;
-            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
-            border-radius: 10px;
+            box-shadow: 0 16px 30px rgba(27, 36, 48, 0.12);
+            border-radius: 12px;
         }
         
         .info-panel {
@@ -96,10 +102,11 @@
         }
         
         .info-box {
-            background: rgba(102, 126, 234, 0.2);
+            background: #f8fbff;
             padding: 15px;
-            border-radius: 8px;
-            border: 1px solid #667eea;
+            border-radius: 10px;
+            border: 1px solid #e3eaf5;
+            box-shadow: 0 6px 12px rgba(27, 36, 48, 0.06);
         }
         
         .info-box h3 {
@@ -115,11 +122,13 @@
         
         .players-list {
             text-align: left;
-            max-height: 150px;
+            max-height: 180px;
             overflow-y: auto;
-            background: rgba(0, 0, 0, 0.3);
-            padding: 10px;
-            border-radius: 8px;
+            background: #ffffff;
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid #e3eaf5;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
         }
         
         .player-item {
@@ -132,47 +141,41 @@
         }
         
         .player-item.alive {
-            background: rgba(102, 200, 100, 0.3);
-            border-left: 3px solid #66c864;
+            background: #eaf4ff;
+            border-left: 3px solid #6c8df5;
         }
         
         .player-item.dead {
-            background: rgba(200, 100, 100, 0.3);
-            border-left: 3px solid #c86464;
-            opacity: 0.6;
+            background: #ffeaea;
+            border-left: 3px solid #f58c8c;
+            opacity: 0.8;
         }
         
         .status {
             margin-top: 15px;
-            padding: 10px;
-            background: rgba(102, 126, 234, 0.2);
-            border-radius: 8px;
+            padding: 12px;
+            background: #f8fbff;
+            border-radius: 10px;
             font-size: 0.95em;
+            border: 1px solid #e3eaf5;
         }
         
-        .status.waiting {
-            color: #ffd700;
-        }
-        
-        .status.playing {
-            color: #66c864;
-        }
-        
-        .status.game-over {
-            color: #ff6b6b;
-        }
+        .status.waiting { color: #f58c8c; }
+        .status.playing { color: #6c8df5; }
+        .status.game-over { color: #c65454; }
         
         .instructions {
-            background: rgba(102, 126, 234, 0.1);
-            padding: 15px;
-            border-radius: 8px;
+            background: #ffffff;
+            padding: 16px;
+            border-radius: 10px;
             margin-top: 20px;
-            font-size: 0.9em;
+            font-size: 0.92em;
             line-height: 1.6;
+            border: 1px solid #e3eaf5;
         }
         
         .instructions strong {
-            color: #667eea;
+            color: #6c8df5;
         }
     </style>
 </head>
@@ -183,8 +186,9 @@
         
         <div class="controls">
             <input type="text" id="playerName" placeholder="Введите ваше имя" maxlength="15">
-            <button id="joinBtn" onclick="joinGame()">Присоединиться</button>
-            <button id="readyBtn" onclick="readyUp()" disabled>Готов</button>
+            <button class="btn btn-primary" id="joinBtn" onclick="joinGame()">Присоединиться</button>
+            <button class="btn btn-ready" id="readyBtn" onclick="readyUp()" disabled>Готов</button>
+            <button class="btn btn-ghost" id="doNothingBtn" onclick="doNothing()">Кнопка ни о чём</button>
         </div>
         
         <div class="info-panel">
@@ -264,6 +268,11 @@
             btn.textContent = 'Готов ✓';
             btn.disabled = true;
         }
+
+        function doNothing() {
+            // Эта кнопка намеренно ничего не делает :)
+            return;
+        }
         
         socket.on('game_state', (state) => {
             gameState = state;
@@ -279,6 +288,12 @@
             const btn = document.getElementById('readyBtn');
             btn.textContent = 'Готов';
             btn.disabled = false;
+
+            // Показать начисленные очки, если пришли
+            if (data.placements && data.placements.length) {
+                const lines = data.placements.map(p => `${p.place}) ${p.name} +${p.points}`);
+                alert('Очки за раунд:\n' + lines.join('\n'));
+            }
         });
         
         function updateUI() {
