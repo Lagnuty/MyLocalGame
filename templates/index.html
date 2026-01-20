@@ -590,10 +590,10 @@
                 if (me.a) {
                     let x = me.x;
                     let y = me.y;
-                    if (keysPressed['ArrowLeft'] || keysPressed['a'] || keysPressed['A']) x -= PLAYER_SPEED;
-                    if (keysPressed['ArrowRight'] || keysPressed['d'] || keysPressed['D']) x += PLAYER_SPEED;
-                    if (keysPressed['ArrowUp'] || keysPressed['w'] || keysPressed['W']) y -= PLAYER_SPEED;
-                    if (keysPressed['ArrowDown'] || keysPressed['s'] || keysPressed['S']) y += PLAYER_SPEED;
+                    if (keysPressed['ArrowLeft'] || keysPressed['a'] || keysPressed['A'] || keysPressed['ф'] || keysPressed['Ф']) x -= PLAYER_SPEED;
+                    if (keysPressed['ArrowRight'] || keysPressed['d'] || keysPressed['D'] || keysPressed['в'] || keysPressed['В']) x += PLAYER_SPEED;
+                    if (keysPressed['ArrowUp'] || keysPressed['w'] || keysPressed['W'] || keysPressed['ц'] || keysPressed['Ц']) y -= PLAYER_SPEED;
+                    if (keysPressed['ArrowDown'] || keysPressed['s'] || keysPressed['S'] || keysPressed['ы'] || keysPressed['Ы']) y += PLAYER_SPEED;
                     x = Math.max(0, Math.min(x, GAME_WIDTH - PLAYER_WIDTH));
                     y = Math.max(0, Math.min(y, GAME_HEIGHT - PLAYER_HEIGHT));
                     if (x !== me.x || y !== me.y) {
