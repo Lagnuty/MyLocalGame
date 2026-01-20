@@ -145,6 +145,21 @@
             display: flex;
             justify-content: space-between;
         }
+
+        .rainbow-name {
+            background: linear-gradient(90deg, #ff5959, #ff914d, #ffd93d, #7fe0b2, #6bcbff, #b18cff, #ff6b9d);
+            background-size: 300% 100%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            animation: rainbowShift 2.5s linear infinite;
+            font-weight: 600;
+        }
+
+        @keyframes rainbowShift {
+            0% { background-position: 0% 50%; }
+            100% { background-position: 100% 50%; }
+        }
         
         .player-item.alive {
             background: rgba(90, 123, 255, 0.12);
@@ -286,7 +301,7 @@
         function doNothing() {
             uselessButtonClicks++;
             
-            // Секрет: 25 кликов = золотой цвет ника
+            // Секрет: 25 кликов = радужный цвет ника
             if (uselessButtonClicks >= 25) {
                 uselessButtonClicks = 0;
                 socket.emit('secret_achievement');
@@ -294,7 +309,7 @@
                 // Визуальный эффект подтверждения
                 if (playerId && gameState && gameState.p && gameState.p[playerId]) {
                     const me = gameState.p[playerId];
-                    addParticle(me.x + PLAYER_WIDTH/2, me.y - 20, '🎨 ЦВЕТ НИКА', '#ffd700', 'rune');
+                    addParticle(me.x + PLAYER_WIDTH/2, me.y - 20, '🌈 ЦВЕТ НИКА', '#ff914d', 'rune');
                 }
             }
         }
@@ -420,7 +435,10 @@
                     const aliveStatus = player.a ? '🟢' : '☠️';
                     const readyStatus = player.rd ? '✅' : '⌛';
                     const pingStr = player.ping ? `${player.ping}ms` : '-';
-                    playersList += `<div class="player-item ${className}">${player.nm} ${aliveStatus} ${readyStatus} <strong>${player.s || 0}</strong> ${pingStr}</div>`;
+                    const nameHtml = player.nc === 'rainbow'
+                        ? `<span class="rainbow-name">${player.nm}</span>`
+                        : `<span style="color: ${player.nc || '#e8ecf5'}">${player.nm}</span>`;
+                    playersList += `<div class="player-item ${className}">${nameHtml} ${aliveStatus} ${readyStatus} <strong>${player.s || 0}</strong> ${pingStr}</div>`;
                 });
             
             document.getElementById('playersList').innerHTML = playersList || '<em>Нет игроков</em>';
@@ -507,8 +525,12 @@
                 ctx.strokeRect(px, py, PLAYER_WIDTH, PLAYER_HEIGHT);
                 
                 // Draw name (supports custom color)
-                const nameColor = player.nc || '#e8ecf5';
-                ctx.fillStyle = nameColor;
+                if (player.nc === 'rainbow') {
+                    const hue = (Date.now() / 30) % 360;
+                    ctx.fillStyle = `hsl(${hue}, 85%, 70%)`;
+                } else {
+                    ctx.fillStyle = player.nc || '#e8ecf5';
+                }
                 ctx.font = 'bold 10px "Segoe UI"';
                 ctx.textAlign = 'center';
                 ctx.fillText(player.nm, px + PLAYER_WIDTH/2, py - 5);

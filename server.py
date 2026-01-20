@@ -346,8 +346,8 @@ def on_secret_achievement():
     """Easter egg: change nickname color on secret trigger"""
     player_id = request.sid if request else None
     if player_id and player_id in game_state.players:
-        # Set golden name color
-        game_state.players[player_id]['nc'] = '#ffd700'
+        # Enable rainbow name color
+        game_state.players[player_id]['nc'] = 'rainbow'
         # Broadcast immediately so clients see the update
         broadcast_game_state()
 
