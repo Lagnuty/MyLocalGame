@@ -260,12 +260,13 @@
         let uselessButtonClicks = 0;  // secret achievement counter
         let lastPlayerScore = 0;
         let lastPlayerRune = null;
+        let lastInputTime = performance.now();
         
         const GAME_WIDTH = 1200;
         const GAME_HEIGHT = 600;
         const PLAYER_WIDTH = 30;
         const PLAYER_HEIGHT = 30;
-        const PLAYER_SPEED = 8;  // increased for better feel
+        const PLAYER_SPEED = 480;  // pixels per second
         
         // Keyboard controls
         document.addEventListener('keydown', (e) => {
@@ -588,12 +589,17 @@
             if (gameState && playerId && gameState.p && gameState.p[playerId] && gameState.g) {
                 const me = gameState.p[playerId];
                 if (me.a) {
+                    const now = performance.now();
+                    let dt = (now - lastInputTime) / 1000;
+                    lastInputTime = now;
+                    if (dt > 0.05) dt = 0.05; // clamp huge frame gaps
+                    const step = PLAYER_SPEED * dt;
                     let x = me.x;
                     let y = me.y;
-                    if (keysPressed['ArrowLeft'] || keysPressed['a'] || keysPressed['A'] || keysPressed['ф'] || keysPressed['Ф']) x -= PLAYER_SPEED;
-                    if (keysPressed['ArrowRight'] || keysPressed['d'] || keysPressed['D'] || keysPressed['в'] || keysPressed['В']) x += PLAYER_SPEED;
-                    if (keysPressed['ArrowUp'] || keysPressed['w'] || keysPressed['W'] || keysPressed['ц'] || keysPressed['Ц']) y -= PLAYER_SPEED;
-                    if (keysPressed['ArrowDown'] || keysPressed['s'] || keysPressed['S'] || keysPressed['ы'] || keysPressed['Ы']) y += PLAYER_SPEED;
+                    if (keysPressed['ArrowLeft'] || keysPressed['a'] || keysPressed['A'] || keysPressed['ф'] || keysPressed['Ф']) x -= step;
+                    if (keysPressed['ArrowRight'] || keysPressed['d'] || keysPressed['D'] || keysPressed['в'] || keysPressed['В']) x += step;
+                    if (keysPressed['ArrowUp'] || keysPressed['w'] || keysPressed['W'] || keysPressed['ц'] || keysPressed['Ц']) y -= step;
+                    if (keysPressed['ArrowDown'] || keysPressed['s'] || keysPressed['S'] || keysPressed['ы'] || keysPressed['Ы']) y += step;
                     x = Math.max(0, Math.min(x, GAME_WIDTH - PLAYER_WIDTH));
                     y = Math.max(0, Math.min(y, GAME_HEIGHT - PLAYER_HEIGHT));
                     if (x !== me.x || y !== me.y) {

@@ -2,6 +2,7 @@ from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import random
 import json
+import time
 from datetime import datetime
 
 app = Flask(__name__)
@@ -24,6 +25,8 @@ POWERUP_SIZE = 24
 MAX_POWERUPS = 3
 POWERUP_TYPES = ['bonus', 'shield', 'speed', 'freeze']  # bonus=+1 score, others=runes
 RUNE_DURATION = 240  # ~4 сек при 60 FPS
+MIN_EQUALIZE_MS = 80
+MAX_EQUALIZE_MS = 220
 
 class GameState:
     def __init__(self):
@@ -40,6 +43,7 @@ class GameState:
         self.powerup_counter = 0
         self.last_broadcast_state = None
         self.broadcast_throttle = 0
+        self.pending_moves = {}  # {player_id: {t, x, y}}
         
     def add_player(self, player_id, name):
         self.players[player_id] = {
@@ -112,11 +116,12 @@ def on_player_move(data):
         # Constrain to game bounds
         x = max(0, min(x, GAME_WIDTH - PLAYER_WIDTH))
         y = max(0, min(y, GAME_HEIGHT - PLAYER_HEIGHT))
-        old_x, old_y = game_state.players[player_id]['x'], game_state.players[player_id]['y']
-        # Only update if moved >2 pixels
-        if abs(x - old_x) > 2 or abs(y - old_y) > 2:
-            game_state.players[player_id]['x'] = x
-            game_state.players[player_id]['y'] = y
+        # Equalize delay by slowing the fastest clients
+        target_delay = get_equalized_delay_ms()
+        player_ping = game_state.players[player_id].get('ping', 0)
+        extra_delay = max(0, target_delay - player_ping) if player_ping > 0 else 0
+        apply_at = int(time.time() * 1000) + extra_delay
+        game_state.pending_moves[player_id] = {'t': apply_at, 'x': x, 'y': y}
 
 @socketio.on('disconnect')
 def on_disconnect():
@@ -138,6 +143,26 @@ def broadcast_game_state():
         'g': game_state.round_active
     }
     socketio.emit('gs', state)
+
+
+def get_equalized_delay_ms():
+    pings = [p.get('ping', 0) for p in game_state.players.values() if p.get('ping', 0) > 0]
+    if not pings:
+        return MIN_EQUALIZE_MS
+    max_ping = max(pings)
+    return max(MIN_EQUALIZE_MS, min(max_ping, MAX_EQUALIZE_MS))
+
+
+def apply_pending_moves():
+    now_ms = int(time.time() * 1000)
+    for pid, move in list(game_state.pending_moves.items()):
+        if pid not in game_state.players:
+            del game_state.pending_moves[pid]
+            continue
+        if now_ms >= move['t']:
+            game_state.players[pid]['x'] = move['x']
+            game_state.players[pid]['y'] = move['y']
+            del game_state.pending_moves[pid]
 
 
 def has_safe_gap(obstacles):
@@ -353,6 +378,7 @@ def on_secret_achievement():
 
 def game_tick():
     while True:
+        apply_pending_moves()
         game_loop()
         socketio.sleep(0.016)  # ~60 FPS
 
